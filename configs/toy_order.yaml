@@ -1,0 +1,23 @@
+# The discriminative toy: two separated events, both needed to answer.
+#
+# This is the setting the project's central claim is about. Relevance-only
+# top-K spends its whole budget inside one event window; a coverage term is
+# forced to spread. Run this before trusting any selector on real data.
+
+_base_: toy.yaml
+
+paths:
+  runs_dir: runs/toy_order
+
+dataset:
+  name: toy
+  root: data/toy_order
+  n_videos: 64
+  n_frames: 120
+  needle_len: 4
+  mode: order
+  limit: null
+
+sweep:
+  budgets: [2, 4, 8, 16, 32]
+  selectors: [uniform, random, topk, mmr, submodular, oracle_needle]

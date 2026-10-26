@@ -1,0 +1,52 @@
+# CPU-only smoke configuration: synthetic needle videos + mock reader.
+# Runs end to end on a laptop in well under a minute. Use it to develop
+# selectors; switch to nextqa.yaml for real numbers.
+
+seed: 0
+
+paths:
+  cache_dir: cache
+  runs_dir: runs/toy
+
+dataset:
+  name: toy
+  root: data/toy
+  n_videos: 32
+  n_frames: 120
+  needle_len: 4
+  mode: single          # "order" gives the two-event variant (configs/toy_order.yaml)
+  limit: null
+
+frames:
+  fps: 1.0
+  max_candidates: 120
+  size: [96, 128]        # [H, W]
+
+encoder:
+  name: color
+
+reader:
+  name: needle
+  gflops_per_frame: 600.0   # pretend-cost of a 3B VLM, for the Pareto axis
+
+cost:
+  encoder_gflops_per_frame: 4.4   # SigLIP-base at 224px, charged on all N frames
+
+budget:
+  K: 8
+  adaptive: false
+  K_min: 2
+  K_max: 32
+
+selector:
+  name: submodular
+  alpha: 1.0
+  beta: 1.0
+  gamma: 0.25          # tuned on toy_order; see README "What the toy already shows"
+  n_time_bins: 32
+  time_sigma_frac: 0.05
+  use_options: true
+
+sweep:
+  budgets: [1, 2, 4, 8, 16, 32]
+  selectors: [uniform, random, stride, topk, mmr, submodular, oracle_needle]

@@ -1,0 +1,42 @@
+# data & caches (never commit these)
+data/
+cache/
+runs/
+outputs/
+*.mp4
+*.avi
+*.mkv
+*.webm
+*.npy
+*.npz
+*.memmap
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# models
+*.pt
+*.pth
+*.safetensors
+hf_home/
+
+# os / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# keep the proposal out of the code repo? no - keep it, it is small
+!CV_Project_Proposal_Adaptive_Frame_Selection.pdf

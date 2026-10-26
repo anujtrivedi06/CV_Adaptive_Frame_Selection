@@ -1,0 +1,54 @@
+# Real configuration: NExT-QA + SigLIP features + a frozen Qwen2.5-VL reader.
+# GPU required for the reader. Run scripts/build_features.py first.
+
+seed: 0
+
+paths:
+  cache_dir: cache
+  runs_dir: runs/nextqa
+
+dataset:
+  name: nextqa
+  root: data/nextqa
+  split_file: val.csv
+  video_dir: videos
+  video_ext: .mp4
+  limit: 500            # fix the question subset early and never change it
+
+frames:
+  fps: 1.0
+  max_candidates: 256
+  size: [224, 224]
+
+encoder:
+  name: hf_clip
+  model_name: google/siglip-base-patch16-224
+  batch_size: 64
+
+reader:
+  name: hf_vlm
+  model_name: Qwen/Qwen2.5-VL-3B-Instruct
+  dtype: bfloat16
+  gflops_per_frame: 600.0    # replace with a measured number before the report
+
+cost:
+  encoder_gflops_per_frame: 4.4
+
+budget:
+  K: 8
+  adaptive: false
+  K_min: 2
+  K_max: 32
+
+selector:
+  name: submodular
+  alpha: 1.0
+  beta: 1.0
+  gamma: 0.25          # starting point only - retune on real features
+  n_time_bins: 32
+  time_sigma_frac: 0.05
+  use_options: true
+
+sweep:
+  budgets: [1, 2, 4, 8, 16, 32]
+  selectors: [uniform, topk, mmr, submodular]
