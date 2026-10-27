@@ -13,7 +13,7 @@ def build_dataset(cfg, seed: int = 0):
     """
     from afs.registry import DATASETS
 
-    kwargs = {k: v for k, v in cfg.items() if k not in ("name", "limit")}
+    kwargs = {k: v for k, v in cfg.items() if k not in ("name", "limit", "offset")}
     name = cfg["name"]
     if name == "nextqa":
         from afs.data import nextqa  # noqa: F401  (lazy: needs pandas + the download)
@@ -23,5 +23,5 @@ def build_dataset(cfg, seed: int = 0):
 
     limit = cfg.get("limit")
     if limit:
-        dataset = dataset.subset(int(limit), seed=seed)
+        dataset = dataset.subset(int(limit), seed=seed, offset=int(cfg.get("offset", 0)))
     return dataset

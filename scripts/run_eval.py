@@ -28,7 +28,7 @@ def _print_row(summary) -> None:
         extra = f"  evidence-recall {summary.evidence_recall:6.3f}"
     print(
         f"{summary.selector:<16s} K={summary.budget:<5g} "
-        f"acc {summary.accuracy:6.3f}  "
+        f"acc {summary.accuracy:6.3f}+-{summary.accuracy_stderr:.3f}  "
         f"frames {summary.mean_frames:5.2f}  "
         f"GFLOPs {summary.mean_total_gflops:9.1f}{extra}"
     )

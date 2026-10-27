@@ -22,7 +22,7 @@ from afs.data.base import (
     spans_to_groups,
 )
 from afs.decode import decode_video
-from afs.encoders import build_encoder
+from afs.encoders import build_encoder_lazy
 from afs.features import FeatureStore
 from afs.metrics import SampleResult, append_to_leaderboard, save_results, summarize
 from afs.readers import build_reader
@@ -49,16 +49,18 @@ def dataset_tag(cfg: Config, dataset: VideoQADataset) -> str:
     import hashlib
     import json
 
-    payload = {k: v for k, v in cfg.dataset.items() if k != "limit"}
+    payload = {
+        k: v for k, v in cfg.dataset.items() if k not in ("limit", "offset")
+    }
     digest = hashlib.sha1(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     ).hexdigest()[:8]
-    base = dataset.name.split("-sub")[0]  # subsetting must not split the cache
+    base = dataset.name.split("-sub")[0]  # subsetting/offset must not split the cache
     return f"{base}-{digest}"
 
 
 def build_store(cfg: Config, dataset: VideoQADataset) -> FeatureStore:
-    encoder = build_encoder(cfg.encoder)
+    encoder = build_encoder_lazy(cfg.encoder)
     return FeatureStore(
         cache_dir=cfg.paths["cache_dir"],
         dataset_name=dataset_tag(cfg, dataset),

@@ -244,6 +244,83 @@ properly (e.g. with `fvcore`) or the compute axis of every Pareto plot is fictio
 
 ---
 
+## Results on NExT-GQA (real data)
+
+Held-out reporting split, n=250 questions, SigLIP-base features at 2 fps, median 70
+candidate frames, grounding-based reader. γ was tuned on the **disjoint** dev split.
+`±` is one binomial standard error.
+
+| selector | K=1 | K=2 | K=4 | K=8 | K=16 |
+|---|---|---|---|---|---|
+| random | 0.420 | 0.500 | 0.616 | 0.736 | 0.860 |
+| top-K (relevance only) | 0.440 | 0.524 | 0.624 | 0.756 | 0.876 |
+| MMR | 0.440 | 0.532 | 0.652 | 0.776 | 0.916 |
+| **uniform** | 0.416 | **0.532** | **0.696** | 0.872 | **0.968** |
+| **submodular (ours)** | **0.444** | **0.556** | **0.708** | **0.892** | 0.952 |
+| *oracle (ceiling)* | *1.000* | *1.000* | *1.000* | *1.000* | *1.000* |
+
+Standard error is ≈0.03 throughout, so read the table with that in mind.
+
+**What we can claim.** Against the other query-conditioned selectors our objective wins
+clearly and consistently — at K=8 it beats random by +0.156 (4.6 s.e.), top-K by +0.136
+(4.1 s.e.) and MMR by +0.116 (3.5 s.e.). The diversity-plus-coverage formulation is doing
+real work relative to ranking by relevance.
+
+**What we cannot claim.** Submodular selection is **not** distinguishable from plain
+uniform sampling: the gap is +0.028, +0.024, +0.012, +0.020, −0.016 at K=1…16, every one
+inside one standard error. On this dataset, uniform is a genuinely strong baseline and we
+do not beat it.
+
+**Why — measured, not guessed.**
+
+1. *The query signal is weak.* Ranking evidence frames above non-evidence frames by
+   SigLIP similarity gives **AUC 0.590** (0.5 would be useless). SigLIP aligns images with
+   object nouns; NExT-GQA asks causal and temporal questions ("*why* did the boy pick up
+   the present"), which it largely cannot represent. Setting α=0 — ignoring the question
+   entirely — costs only ~5 points, which says the same thing from the other side.
+2. *Evidence is not sparse.* The grounded spans cover ~23% of each video, so a single
+   random frame lands in evidence ~23% of the time and uniform coverage is already a
+   near-optimal strategy. There is little for a smarter selector to exploit.
+3. *Videos are short.* Median 35 s. Frame selection is a long-video problem, and this
+   benchmark is not a long-video benchmark.
+
+**The oracle sits at 1.000 at every budget, including K=1.** One perfectly chosen frame
+answers every question, while the best real selector gets 0.444 there. The entire project
+lives in that gap, and it is not a modelling-capacity gap — it is a *retrieval* gap caused
+by (1).
+
+### Per question type, K=4
+
+| type | uniform | top-K | MMR | ours |
+|---|---|---|---|---|
+| causal-why | 0.682 | 0.598 | 0.626 | 0.682 |
+| causal-how | 0.676 | 0.730 | 0.676 | 0.703 |
+| temporal-current | 0.667 | 0.700 | 0.733 | 0.767 |
+| temporal-next | 0.732 | 0.549 | 0.620 | 0.704 |
+| temporal-previous | 0.800 | 1.000 | 1.000 | 1.000 |
+
+Note `temporal-previous` has only a handful of questions in this split — that row is noise
+and should not be quoted.
+
+### What this implies for the next phase
+
+The bottleneck is the relevance signal, not the selection algorithm. Priorities:
+
+1. **A stronger query encoder.** Caption each frame and match in text space, or use a
+   VLM-scored relevance. Raising AUC 0.590 → 0.75 would matter far more than any further
+   objective tuning.
+2. **A genuinely long-video benchmark** (EgoSchema, LongVideoBench) where N/K is 10–100×
+   larger and uniform is no longer near-optimal.
+3. Only then revisit the adaptive budget — with difficulty estimates this noisy there is
+   nothing reliable to reallocate on.
+
+Reproduce with:
+
+```bash
+python scripts/run_eval.py   --config configs/nextgqa.yaml --sweep   # report split
+python scripts/run_eval.py   --config configs/nextgqa.yaml --sweep dataset.offset=0   # dev
+```
+
 ## Status
 
 - [x] **Phase 1** — decoding, feature caching, dataset loaders, configs, tests

@@ -131,13 +131,20 @@ class VideoQADataset:
                 out.append(s.video_id)
         return out
 
-    def subset(self, n: int, seed: int = 0) -> "VideoQADataset":
-        """Deterministic subsample - we fix question subsets early and keep them."""
+    def subset(self, n: int, seed: int = 0, offset: int = 0) -> "VideoQADataset":
+        """Deterministic subsample - we fix question subsets early and keep them.
+
+        ``offset`` carves out *disjoint* subsets from the same shuffle, which is
+        how we separate a tuning split from a reporting split. Choosing
+        hyperparameters on the questions you then report on is test-set tuning
+        and inflates every number; with an offset, `limit=250, offset=0` and
+        `limit=250, offset=250` share no question.
+        """
         import random
 
         rng = random.Random(seed)
         picked = sorted(self._samples, key=lambda s: s.qid)
         rng.shuffle(picked)
-        clone = VideoQADataset(picked[:n])
-        clone.name = f"{self.name}-sub{n}"
+        clone = VideoQADataset(picked[offset : offset + n])
+        clone.name = f"{self.name}-sub{n}@{offset}" if offset else f"{self.name}-sub{n}"
         return clone

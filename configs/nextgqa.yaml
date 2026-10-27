@@ -23,7 +23,13 @@ dataset:
   evidence_mode: any      # NExT-GQA's spans are alternative groundings
   require_grounding: true
   require_video: true
-  limit: 500              # fix the subset now and never change it
+  # Tuning protocol. The 500 cached questions are split into two disjoint
+  # halves from the same shuffle: choose hyperparameters with offset=0, report
+  # with offset=250. Tuning on the questions you report on inflates every
+  # number, and with a few hundred questions the inflation is the same size as
+  # the effects we are chasing.
+  limit: 250
+  offset: 250             # the REPORTING split; use offset=0 to tune
 
 frames:
   # Measured on the val subset: duration median 35 s, p10 15 s. At 1 fps the
@@ -59,7 +65,9 @@ selector:
   name: submodular
   alpha: 1.0
   beta: 1.0
-  gamma: 0.25           # tuned on the toy; RETUNE here on real features
+  # Tuned on the dev split (offset=0). The toy's 0.25 is clearly too low on
+  # real features; anything in 1..5 is indistinguishable at this sample size.
+  gamma: 1.0
   n_time_bins: 32
   time_sigma_frac: 0.05
   use_options: true

@@ -85,29 +85,35 @@ class FeatureStore:
     # ---------------- text ----------------
 
     def get_text(self, texts: Sequence[str]) -> np.ndarray:
-        out = np.zeros((len(texts), self.encoder.dim), dtype=np.float32)
+        # Deliberately avoids touching `self.encoder` (and `.dim`) when every
+        # string is already cached, so a fully-cached run never loads the model.
+        vals: list[np.ndarray | None] = [None] * len(texts)
         missing_idx, missing_txt = [], []
         for i, t in enumerate(texts):
             key = _sha1(t)
-            if key in self._text_mem:
-                out[i] = self._text_mem[key]
-                continue
-            p = self.text_dir / f"{key}.npy"
-            if p.exists():
-                v = np.load(p)
-                self._text_mem[key] = v
-                out[i] = v
-            else:
+            v = self._text_mem.get(key)
+            if v is None:
+                p = self.text_dir / f"{key}.npy"
+                if p.exists():
+                    v = np.load(p)
+                    self._text_mem[key] = v
+            if v is None:
                 missing_idx.append(i)
                 missing_txt.append(t)
+            else:
+                vals[i] = v
+
         if missing_txt:
             feats = self.encoder.encode_text(missing_txt)
             for j, i in enumerate(missing_idx):
                 key = _sha1(texts[i])
                 np.save(self.text_dir / f"{key}.npy", feats[j])
                 self._text_mem[key] = feats[j]
-                out[i] = feats[j]
-        return out
+                vals[i] = feats[j]
+
+        if not vals:
+            return np.zeros((0, 0), dtype=np.float32)
+        return np.stack(vals).astype(np.float32)
 
     def query_vector(self, sample: QASample, include_options: bool = True) -> np.ndarray:
         """One unit-norm vector representing the question (+ its options)."""

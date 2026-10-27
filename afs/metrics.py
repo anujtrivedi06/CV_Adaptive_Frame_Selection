@@ -59,6 +59,10 @@ class RunSummary:
     dataset: str
     budget: float
     accuracy: float
+    #: binomial standard error of `accuracy`. With a few hundred questions this
+    #: is ~3 points, so most selector gaps on one split are not significant;
+    #: quote it next to every accuracy or the comparisons mislead.
+    accuracy_stderr: float
     n: int
     mean_frames: float
     mean_reader_gflops: float
@@ -112,6 +116,7 @@ def summarize(
         dataset=dataset,
         budget=budget,
         accuracy=float(correct.mean()),
+        accuracy_stderr=float(np.sqrt(correct.mean() * (1 - correct.mean()) / n)),
         n=n,
         mean_frames=float(np.mean([r.n_selected for r in results])),
         mean_reader_gflops=float(np.mean([r.reader_gflops for r in results])),
