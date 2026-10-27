@@ -44,6 +44,32 @@ QTYPE_NAMES = {
 }
 
 
+def _answer_index(raw: object, options: List[str]) -> int:
+    """Resolve the csv's `answer` field to an index into `options`.
+
+    The NExT-GQA csvs store the answer as its *text* ("unwrap it"), while some
+    NExT-QA releases store an integer index. Accept either. Text is matched
+    first, because an option could itself be the string "3".
+    """
+    text = str(raw).strip()
+    if text in options:
+        return options.index(text)
+
+    lowered = [o.strip().lower() for o in options]
+    if text.lower() in lowered:
+        return lowered.index(text.lower())
+
+    try:
+        idx = int(text)
+    except ValueError:
+        raise ValueError(
+            f"answer {raw!r} is neither an index nor one of {options}"
+        ) from None
+    if not 0 <= idx < len(options):
+        raise ValueError(f"answer index {idx} out of range for {len(options)} options")
+    return idx
+
+
 @DATASETS.register("nextgqa")
 class NextGQADataset(VideoQADataset):
     name = "nextgqa"
@@ -96,14 +122,15 @@ class NextGQADataset(VideoQADataset):
                     continue
 
             qtype = str(row.get("type", "unknown"))
+            options = [str(row[f"a{i}"]) for i in range(5)]
             samples.append(
                 QASample(
                     qid=f"{video_id}_{qid}",
                     video_id=video_id,
                     video_path=str(video_path),
                     question=str(row["question"]).strip(),
-                    options=[str(row[f"a{i}"]) for i in range(5)],
-                    answer_idx=int(row["answer"]),
+                    options=options,
+                    answer_idx=_answer_index(row["answer"], options),
                     qtype=QTYPE_NAMES.get(qtype, qtype) if expand_names else qtype,
                     duration=float(entry.get("duration")) if entry.get("duration") else None,
                     meta={

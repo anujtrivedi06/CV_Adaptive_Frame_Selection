@@ -26,8 +26,12 @@ dataset:
   limit: 500              # fix the subset now and never change it
 
 frames:
-  fps: 1.0
-  max_candidates: 128     # val videos average ~44 s, so 1 fps rarely hits this
+  # Measured on the val subset: duration median 35 s, p10 15 s. At 1 fps the
+  # median candidate pool is only 35 frames, so a budget of 16-32 would be
+  # most of the video and "selection" would mean nothing. At 2 fps the median
+  # pool is 70, keeping N/K >= 4 for the median video at our largest budget.
+  fps: 2.0
+  max_candidates: 128
   size: [224, 224]
 
 encoder:
@@ -61,5 +65,8 @@ selector:
   use_options: true
 
 sweep:
-  budgets: [1, 2, 4, 8, 16, 32]
+  # The grounded spans cover ~23% of each video on average, so a single random
+  # frame already lands in evidence ~23% of the time and evidence recall
+  # saturates by K=8. The informative regime here is the tight budgets.
+  budgets: [1, 2, 4, 8, 16]
   selectors: [uniform, random, topk, mmr, submodular, oracle_needle]

@@ -92,7 +92,9 @@ def fake_nextgqa(tmp_path):
     import pandas as pd
 
     rows = []
-    for vid, qid, ans in [("1111", "1", 2), ("2222", "3", 0)]:
+    # The real csvs store the answer as TEXT, not an index - match that here,
+    # or the fixture tests a schema the dataset does not actually use.
+    for vid, qid, ans in [("1111", "1", "option 2"), ("2222", "3", "option 0")]:
         (root / "videos" / f"{vid}.mp4").write_bytes(b"not-a-real-video")
         rows.append({
             "video_id": vid, "frame_count": 900, "width": 640, "height": 480,
@@ -103,7 +105,7 @@ def fake_nextgqa(tmp_path):
     # a third question whose video is absent, to exercise the skip path
     rows.append({
         "video_id": "9999", "frame_count": 900, "width": 640, "height": 480,
-        "question": "unused", "answer": 0, "qid": "1", "type": "TN",
+        "question": "unused", "answer": "option 0", "qid": "1", "type": "TN",
         **{f"a{i}": f"option {i}" for i in range(5)},
     })
     pd.DataFrame(rows).to_csv(root / "annotations" / "val.csv", index=False)
@@ -151,6 +153,20 @@ def test_nextgqa_spans_become_groups_on_a_real_grid(fake_nextgqa):
     assert covers_evidence(s, [2]) is True             # "any" is the default
     assert covers_evidence(s, [2], mode="all") is False
     assert covers_evidence(s, [2, 21], mode="all") is True
+
+
+def test_answer_field_accepts_both_text_and_index():
+    from afs.data.nextgqa import _answer_index
+
+    opts = ["unwrap it", "share it", "3", "run away", "sit"]
+    assert _answer_index("unwrap it", opts) == 0       # real NExT-GQA form
+    assert _answer_index("  Share It ", opts) == 1     # whitespace / case
+    assert _answer_index("3", opts) == 2               # text wins over index
+    assert _answer_index(4, opts) == 4                 # integer-index form
+    with pytest.raises(ValueError):
+        _answer_index("not an option", opts)
+    with pytest.raises(ValueError):
+        _answer_index(99, opts)
 
 
 def test_nextgqa_raises_clearly_when_annotations_are_missing(tmp_path):
