@@ -1,8 +1,10 @@
 # data & caches (never commit these)
-data/
-cache/
-runs/
-outputs/
+# Leading slash matters: a bare `data/` also matches the `afs/data/` source
+# package and silently drops it from the repo.
+/data/
+/cache/
+/runs/
+/outputs/
 *.mp4
 *.avi
 *.mkv

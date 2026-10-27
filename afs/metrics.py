@@ -37,7 +37,13 @@ class SampleResult:
     read_s: float = 0.0
     reader_gflops: float = 0.0
     selector_gflops: float = 0.0
-    hit_evidence: Optional[bool] = None  # toy only: did we retrieve the needle?
+    # Did the selection retrieve the ground-truth evidence? `hit_evidence` uses
+    # the dataset's own convention; the two below report both readings, since
+    # which one is right depends on whether the annotated windows are
+    # alternatives or jointly necessary.
+    hit_evidence: Optional[bool] = None
+    hit_evidence_any: Optional[bool] = None
+    hit_evidence_all: Optional[bool] = None
 
     @property
     def total_gflops(self) -> float:
@@ -61,6 +67,8 @@ class RunSummary:
     mean_select_s: float
     mean_read_s: float
     evidence_recall: Optional[float] = None
+    evidence_recall_any: Optional[float] = None
+    evidence_recall_all: Optional[float] = None
     per_type: Dict[str, float] = field(default_factory=dict)
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -92,7 +100,10 @@ def summarize(
         mask = np.array([r.qtype == qt for r in results], dtype=bool)
         per_type[qt] = float(correct[mask].mean())
 
-    hits = [r.hit_evidence for r in results if r.hit_evidence is not None]
+    def recall(attr: str) -> Optional[float]:
+        vals = [getattr(r, attr) for r in results if getattr(r, attr) is not None]
+        return float(np.mean(vals)) if vals else None
+
     return RunSummary(
         run_name=run_name,
         selector=selector,
@@ -108,7 +119,9 @@ def summarize(
         mean_total_gflops=float(np.mean([r.total_gflops for r in results])),
         mean_select_s=float(np.mean([r.select_s for r in results])),
         mean_read_s=float(np.mean([r.read_s for r in results])),
-        evidence_recall=float(np.mean(hits)) if hits else None,
+        evidence_recall=recall("hit_evidence"),
+        evidence_recall_any=recall("hit_evidence_any"),
+        evidence_recall_all=recall("hit_evidence_all"),
         per_type=per_type,
         extra=extra or {},
     )

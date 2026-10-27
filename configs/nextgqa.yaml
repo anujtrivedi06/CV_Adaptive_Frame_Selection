@@ -1,0 +1,65 @@
+# NExT-GQA: real videos, real questions, and ground-truth temporal grounding.
+#
+# The grounding is what makes this the main config rather than nextqa.yaml:
+# because we know which seconds contain the answer, the oracle is exact and
+# "evidence recall" is measurable - so selection can be evaluated properly
+# even with the CPU mock reader, before any GPU is involved.
+#
+# Set AFS_DATA to the folder holding `nextgqa/` (keep it OUT of any synced
+# folder - the videos are ~6.6 GB):
+#     Windows (PowerShell):  $env:AFS_DATA = "$HOME\Documents\cv_data"
+#     Linux / macOS:         export AFS_DATA=~/cv_data
+
+seed: 0
+
+paths:
+  cache_dir: ${AFS_DATA}/cache
+  runs_dir: runs/nextgqa
+
+dataset:
+  name: nextgqa
+  root: ${AFS_DATA}/nextgqa
+  split: val
+  evidence_mode: any      # NExT-GQA's spans are alternative groundings
+  require_grounding: true
+  require_video: true
+  limit: 500              # fix the subset now and never change it
+
+frames:
+  fps: 1.0
+  max_candidates: 128     # val videos average ~44 s, so 1 fps rarely hits this
+  size: [224, 224]
+
+encoder:
+  name: hf_clip
+  model_name: google/siglip-base-patch16-224
+  batch_size: 32
+
+# CPU-friendly default: scores selection against the ground-truth grounding,
+# no GPU and no VLM. Switch to the real reader once you have a GPU:
+#   --config configs/nextgqa.yaml reader.name=hf_vlm
+reader:
+  name: needle
+  gflops_per_frame: 600.0
+
+cost:
+  encoder_gflops_per_frame: 4.4
+
+budget:
+  K: 8
+  adaptive: false
+  K_min: 2
+  K_max: 32
+
+selector:
+  name: submodular
+  alpha: 1.0
+  beta: 1.0
+  gamma: 0.25           # tuned on the toy; RETUNE here on real features
+  n_time_bins: 32
+  time_sigma_frac: 0.05
+  use_options: true
+
+sweep:
+  budgets: [1, 2, 4, 8, 16, 32]
+  selectors: [uniform, random, topk, mmr, submodular, oracle_needle]

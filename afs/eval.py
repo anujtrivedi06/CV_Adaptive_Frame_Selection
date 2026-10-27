@@ -15,7 +15,12 @@ from tqdm import tqdm
 
 from afs.config import Config
 from afs.data import build_dataset
-from afs.data.base import QASample, VideoQADataset, covers_evidence
+from afs.data.base import (
+    QASample,
+    VideoQADataset,
+    covers_evidence,
+    spans_to_groups,
+)
 from afs.decode import decode_video
 from afs.encoders import build_encoder
 from afs.features import FeatureStore
@@ -124,6 +129,11 @@ def run_eval(
     needs_query = getattr(selector, "needs_query", False) or adaptive
     for sample in tqdm(samples, desc="features", disable=not progress):
         feats, times = store.get_video(sample)
+        # Datasets annotate evidence in seconds; resolve it against the grid we
+        # actually decoded, so the annotation stays valid at any fps.
+        spans = sample.meta.get("evidence_spans")
+        if spans:
+            sample.meta["evidence_groups"] = spans_to_groups(spans, times)
         query = (
             store.query_vector(sample, cfg.selector.get("use_options", True))
             if needs_query
@@ -185,6 +195,8 @@ def run_eval(
                 reader_gflops=reader.cost_gflops(len(idx)),
                 selector_gflops=enc_gflops * ctx.n_frames,
                 hit_evidence=covers_evidence(sample, idx),
+                hit_evidence_any=covers_evidence(sample, idx, mode="any"),
+                hit_evidence_all=covers_evidence(sample, idx, mode="all"),
             )
         )
 

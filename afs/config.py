@@ -73,6 +73,27 @@ def _coerce(text: str) -> Any:
     return text
 
 
+def _expand(obj: Any) -> Any:
+    """Expand ``${VAR}`` and ``~`` inside every string in the config.
+
+    Datasets live outside the repo (they are large, and on a OneDrive-synced
+    machine they must not be inside the synced tree), but a committed config
+    must not hardcode one person's absolute path. So configs refer to
+    ``${AFS_DATA}`` and each person points that at their own data directory.
+    An unset variable is left verbatim, and the loaders then fail with a clear
+    path in the message rather than silently reading the wrong place.
+    """
+    import os
+
+    if isinstance(obj, str):
+        return os.path.expanduser(os.path.expandvars(obj))
+    if isinstance(obj, Mapping):
+        return {k: _expand(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_expand(v) for v in obj]
+    return obj
+
+
 def _merge(base: dict, extra: Mapping) -> dict:
     for key, value in extra.items():
         if isinstance(value, Mapping) and isinstance(base.get(key), Mapping):
@@ -106,7 +127,7 @@ def load_config(path: str | Path, overrides: Iterable[str] = ()) -> Config:
             base = yaml.safe_load(fh) or {}
         raw = _merge(base, raw)
 
-    cfg = Config.from_obj(raw)
+    cfg = Config.from_obj(_expand(raw))
     for override in overrides:
         apply_override(cfg, override)
     cfg.setdefault("_config_path", str(path))

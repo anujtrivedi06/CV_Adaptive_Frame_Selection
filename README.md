@@ -64,6 +64,8 @@ Two rules keep the results interpretable:
 | Path | What it is |
 |---|---|
 | `afs/decode.py` | video → frames at a fixed fps (PyAV, OpenCV fallback) |
+| `afs/data/nextgqa.py` | NExT-GQA loader — questions **plus** ground-truth grounding |
+| `afs/data/toy.py` | the two synthetic datasets |
 | `afs/encoders/` | `color` (cheap, CPU, no deps), `hf_clip` (SigLIP/CLIP) |
 | `afs/features.py` | the feature cache — decode+encode once, reuse forever |
 | `afs/selectors/baselines.py` | uniform, random, stride, top-K |
@@ -179,20 +181,66 @@ is NExT-QA.
 
 ---
 
-## Moving to real data
+## Getting NExT-GQA (the real dataset)
 
-1. Download NExT-QA into `data/nextqa/` as `videos/<id>.mp4` plus `val.csv`.
-2. `pip install transformers accelerate`
-3. `python scripts/build_features.py --config configs/nextqa.yaml` (slow, once)
-4. `python scripts/run_eval.py --config configs/nextqa.yaml --sweep`
+We use **NExT-GQA**, not plain NExT-QA. Same multiple-choice questions, but each one
+also carries the *time spans that actually contain the answer*. For a frame-selection
+project that is a large win:
 
-A GPU is needed for the `hf_vlm` reader; everything else runs on CPU. Use
-`reader.name=similarity` for a CPU-only sanity check on real data before the VLM is
-available. Keep `dataset.limit` fixed from the first run onwards — the question subset
-must not move between experiments.
+- the **oracle is exact**, not a greedy approximation that burns reader calls;
+- we can measure **evidence recall** — did the selector find the right moment? — which
+  isolates selection quality from the reader's reasoning;
+- so selection can be evaluated **with no GPU at all**, via the grounding-based reader.
 
-**Before the report:** `reader.gflops_per_frame` is currently a placeholder (600). Measure
-it properly (e.g. with `fvcore`) or the compute axis of every Pareto plot is fiction.
+The val split is 3,358 questions over 567 videos, across five question types
+(causal-why, causal-how, temporal-next/current/previous) — the per-category breakdown
+the report needs comes for free.
+
+```bash
+# 1. pick a data directory OUTSIDE any synced folder (the videos are ~6.6 GB)
+#    PowerShell:  $env:AFS_DATA = "$HOME\Documents\cv_data"
+#    bash:        export AFS_DATA=~/cv_data
+
+# 2. annotations (~2 MB)
+python -c "from huggingface_hub import snapshot_download as d; import os; \
+d(repo_id='shuzhig/nextgqa', repo_type='dataset', allow_patterns=['annotations/*'], \
+  local_dir=os.path.join(os.environ['AFS_DATA'],'nextgqa'))"
+
+# 3. videos (~6.6 GB, resumable — just re-run if it drops)
+python -c "from huggingface_hub import snapshot_download as d; import os; \
+d(repo_id='shuzhig/nextgqa', repo_type='dataset', allow_patterns=['videos/*'], \
+  local_dir=os.path.join(os.environ['AFS_DATA'],'nextgqa'), max_workers=8)"
+
+# 4. cache features once (CPU: ~90 min for the full val split; minutes on a GPU)
+python scripts/build_features.py --config configs/nextgqa.yaml
+
+# 5. the sweep — CPU only, no VLM needed
+python scripts/run_eval.py   --config configs/nextgqa.yaml --sweep
+python scripts/plot_pareto.py --runs runs/nextgqa
+```
+
+`${AFS_DATA}` is expanded inside configs, so nobody's absolute path is committed.
+
+### Then add the real reader (needs a GPU)
+
+```bash
+pip install accelerate
+python scripts/run_eval.py --config configs/nextgqa.yaml --sweep reader.name=hf_vlm
+```
+
+Keep `dataset.limit` fixed from the first run onwards — the question subset must not
+move between experiments.
+
+**Before the report:** `reader.gflops_per_frame` is a placeholder (600). Measure it
+properly (e.g. with `fvcore`) or the compute axis of every Pareto plot is fiction.
+
+### Notes from setting this up
+
+- The SigLIP tokenizer needs `sentencepiece`; it is not pulled in automatically.
+- `transformers` v5 changed `get_image_features` to return an output object instead of
+  a tensor, and renamed `torch_dtype` to `dtype`. `afs/encoders/hf_clip.py` handles both
+  v4 and v5, so either works.
+- Measured SigLIP-base throughput on 4 CPU threads: **0.219 s/frame**.
 
 ---
 

@@ -63,11 +63,12 @@ class HFVLMReader(Reader):
         self.processor = AutoProcessor.from_pretrained(
             model_name, max_pixels=max_pixels
         )
-        self.model = (
-            ModelCls.from_pretrained(model_name, torch_dtype=torch_dtype)
-            .to(device)
-            .eval()
-        )
+        # transformers renamed `torch_dtype` to `dtype` in v5; support both.
+        try:
+            model = ModelCls.from_pretrained(model_name, dtype=torch_dtype)
+        except TypeError:
+            model = ModelCls.from_pretrained(model_name, torch_dtype=torch_dtype)
+        self.model = model.to(device).eval()
         self.tokenizer = self.processor.tokenizer
         self._letter_ids = {
             L: self.tokenizer.encode(L, add_special_tokens=False)[0] for L in LETTERS
