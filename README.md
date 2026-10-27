@@ -325,9 +325,10 @@ python scripts/run_eval.py   --config configs/nextgqa.yaml --sweep dataset.offse
 
 - [x] **Phase 1** — decoding, feature caching, dataset loaders, configs, tests
 - [x] **Phase 2** — baselines, oracle, evaluation harness, Pareto plots
-- [x] **Phase 3** — submodular selector (tuned on toy; needs retuning on real features)
-- [x] **Phase 4** — adaptive budget allocator (implemented; untested on real difficulty variation)
-- [ ] **Phase 5** — ablations and per-category analysis on NExT-QA
+- [x] **Phase 3** — submodular selector, retuned on a held-out NExT-GQA dev split
+- [x] **Phase 4** — adaptive budget allocator (implemented; no difficulty variation to exploit yet)
+- [x] **Phase 5** — ablations, significance testing and per-category analysis on NExT-GQA
 - [ ] **Phase 6** — CVPR-format report and demo
 
-Immediate next step is the NExT-QA download and feature cache; nothing else is blocked on it.
+Dataset, feature cache and the first full results are done. The open problem is the one
+in "What this implies for the next phase": the relevance signal, not the selector.
